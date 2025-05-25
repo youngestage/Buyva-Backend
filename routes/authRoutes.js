@@ -1,17 +1,40 @@
-const express = require('express');
-const router = express.Router();
+const { Router } = require('express');
+const { StatusCodes } = require('http-status-codes');
+const { protect } = require('../middlewares/authMiddleware');
+const {
+  signup,
+  login,
+  getProfile,
+  updateProfile,
+  deleteAccount,
+  logout
+} = require('../controllers/authController');
 
-// Import the auth controller (will be created next)
-const authController = require('../controllers/authController');
+const router = Router();
 
-// @desc    Register a new user
-// @route   POST /api/auth/signup
-// @access  Public
-router.post('/signup', authController.signup);
+// Public routes
+router.post('/signup', signup);
+router.post('/login', login);
 
-// @desc    Authenticate user & get token
-// @route   POST /api/auth/login
-// @access  Public
-router.post('/login', authController.login);
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.status(StatusCodes.OK).json({
+    status: 'ok',
+    message: 'Auth service is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Protected routes
+router.use(protect);
+
+// User profile routes
+router.route('/me')
+  .get(getProfile)
+  .put(updateProfile)
+  .delete(deleteAccount);
+  
+// Logout route
+router.post('/logout', logout);
 
 module.exports = router;

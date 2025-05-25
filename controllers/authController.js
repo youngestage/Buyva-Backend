@@ -1,69 +1,224 @@
-const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const { StatusCodes } = require('http-status-codes');
+const supabase = require('../config/supabase');
 
 // @desc    Register a new user
 // @route   POST /api/auth/signup
 // @access  Public
-exports.signup = async (req, res) => {
-  // Implement user signup logic here
-  // - Get user data from req.body
-  const { name, email, password, role } = req.body;
+const signup = async (req, res) => {
+  const { email, password, first_name, last_name, role = 'customer' } = req.body;
+  const full_name = `${first_name} ${last_name}`.trim();
 
   try {
-    // - Check if user already exists
-    const userExists = await User.findOne({ email });
-
-    if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+    // Validate role
+    if (role && !['customer', 'vendor'].includes(role)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        message: 'Invalid role. Must be either customer or vendor' 
+      });
     }
 
-    // - Create new user
-    const user = await User.create({
-      name,
-      email,
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        message: 'User already exists' 
+      });
+    }
+
+    // Create user in Supabase Auth with role in user_metadata
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      email: email.toLowerCase(),
       password,
-      role: role || 'customer', // Default role to customer if not provided
+      options: {
+        data: {
+          full_name,
+          role // This will be used by the database trigger
+        },
+        emailRedirectTo: process.env.CLIENT_URL || 'http://localhost:3000/login'
+      }
     });
 
-    // - Generate JWT token
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    if (signUpError) {
+      throw signUpError;
+    }
 
-    // - Send response with token and user data
-    res.status(201).json({ token, user });
+    // Return the user data (Supabase will send a confirmation email)
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: 'Signup successful! Please check your email to confirm your account.',
+      user: {
+        id: authData.user.id,
+        email: authData.user.email,
+        full_name,
+        role
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Signup error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      success: false,
+      message: error.message || 'Error creating user',
+      error: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
-// @desc    Authenticate user and get token
+
+// @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
-exports.login = async (req, res) => {
+const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Sign in with Supabase
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.toLowerCase(),
+      password
+    });
 
-    // If user doesn't exist
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    if (error) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ 
+        message: 'Invalid credentials' 
+      });
     }
 
-    // Compare passwords
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Get user profile
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
 
-    // If passwords don't match
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+        message: 'Error fetching user profile' 
+      });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    // Send response with token and user data
-    res.status(200).json({ token, user });
+    res.json({
+      user: userProfile,
+      session: data.session
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Login error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      message: error.message || 'Error during login'
+    });
   }
+};
+
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+// @access  Private
+const getProfile = async (req, res) => {
+  try {
+    // Get user ID from the authenticated request
+    const userId = req.user.id;
+
+    // Get user profile
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+        message: 'Error fetching user profile' 
+      });
+    }
+
+    res.json(userProfile);
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      message: error.message || 'Error fetching profile'
+    });
+  }
+};
+
+// @desc    Update user profile
+// @route   PUT /api/auth/me
+// @access  Private
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const updates = req.body;
+
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    
+    res.json(updatedProfile);
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      message: error.message || 'Error updating profile'
+    });
+  }
+};
+
+// @desc    Delete user account
+// @route   DELETE /api/auth/me
+// @access  Private
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Delete from auth
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) throw authError;
+
+    // Delete from profiles
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (profileError) throw profileError;
+
+    res.status(StatusCodes.NO_CONTENT).send();
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      message: error.message || 'Error deleting account'
+    });
+  }
+};
+
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Private
+const logout = async (req, res) => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    
+    res.status(StatusCodes.OK).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      message: error.message || 'Error during logout'
+    });
+  }
+};
+
+module.exports = {
+  signup,
+  login,
+  getProfile,
+  updateProfile,
+  deleteAccount,
+  logout
 };
