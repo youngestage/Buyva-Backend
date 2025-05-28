@@ -5,9 +5,11 @@ export interface SignupRequest extends Request {
   body: {
     email: string;
     password: string;
-    first_name: string;
-    last_name: string;
-    role?: 'customer' | 'vendor';
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+    role?: 'customer' | 'vendor' | 'admin';
+    [key: string]: any; // Allow additional properties
   };
   [key: string]: any; // Allow other properties
 }
@@ -23,15 +25,17 @@ export interface LoginRequest extends Request {
 export interface UpdateProfileRequest extends Request {
   user?: UserProfile;
   body: Partial<{
-    first_name: string;
-    last_name: string;
-    avatar_url: string;
-    phone: string;
-    address: string;
-    city: string;
-    state: string;
-    country: string;
-    postal_code: string;
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    postal_code?: string;
+    [key: string]: any; // Allow additional properties
   }>;
   [key: string]: any; // Allow other properties
 }

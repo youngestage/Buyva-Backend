@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { StatusCodes } from 'http-status-codes';
 import { testConnection } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 // Initialize Express app
 const app: Express = express();
@@ -35,6 +36,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req: Request, res: Response) => {

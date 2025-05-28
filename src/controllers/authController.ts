@@ -14,8 +14,15 @@ export const signup = async (
   res: Response<AuthResponse>,
   next: NextFunction
 ): Promise<Response<AuthResponse> | void> => {
-  const { email, password, first_name, last_name, role = 'customer' } = req.body;
-  const full_name = `${first_name} ${last_name}`.trim();
+  const { email, password, full_name, first_name, last_name, role = 'customer', ...otherFields } = req.body;
+  
+  // Combine first_name and last_name if full_name is not provided
+  const userFullName = full_name || `${first_name || ''} ${last_name || ''}`.trim() || 'New User';
+  
+  // Remove any undefined or empty values from other fields
+  const cleanOtherFields = Object.fromEntries(
+    Object.entries(otherFields).filter(([_, v]) => v !== undefined && v !== '')
+  );
 
   try {
     // Validate role
@@ -40,14 +47,15 @@ export const signup = async (
       });
     }
 
-    // Create user in Supabase Auth with role in user_metadata
+    // Create user in Supabase Auth with user metadata
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email: email.toLowerCase(),
       password,
       options: {
         data: {
-          full_name,
-          role // This will be used by the database trigger
+          full_name: userFullName,
+          role, // This will be used by the database trigger
+          ...cleanOtherFields // Include any additional fields
         },
         emailRedirectTo: process.env.CLIENT_URL || 'http://localhost:3000/login'
       }
@@ -65,11 +73,12 @@ export const signup = async (
       user: {
         id: authData.user?.id || '',
         email: authData.user?.email || '',
-        full_name,
+        full_name: userFullName,
         role,
         created_at: currentTime,
-        updated_at: currentTime
-      }
+        updated_at: currentTime,
+        avatar_url: null
+      } as UserProfile
     });
   } catch (error: any) {
     console.error('Signup error:', error);
@@ -191,12 +200,48 @@ export const updateProfile = async (
 ): Promise<Response<UserProfile | { message: string }> | void> => {
   try {
     const userId = req.user?.id;
-    const updates = req.body;
+    const { first_name, last_name, ...otherUpdates } = req.body;
 
     if (!userId) {
       return res.status(StatusCodes.UNAUTHORIZED).json({ 
         message: 'Not authenticated' 
       });
+    }
+
+    // Combine first_name and last_name into full_name if either is provided
+    const updates: Record<string, any> = { ...otherUpdates };
+    
+    if (first_name !== undefined || last_name !== undefined) {
+      // If either name part is provided, we need to construct the full_name
+      // First, get the current profile to see the existing full_name
+      const { data: currentProfile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      // Split the current full_name to get existing parts
+      const currentFullName = currentProfile?.full_name || '';
+      const currentNameParts = currentFullName.split(' ');
+      const currentFirstName = first_name !== undefined ? first_name : currentNameParts[0] || '';
+      const currentLastName = last_name !== undefined ? last_name : currentNameParts.slice(1).join(' ') || '';
+      
+      // Combine the names, handling cases where either might be empty
+      updates.full_name = `${currentFirstName} ${currentLastName}`.trim();
+    }
+
+    // Only proceed with update if there are actual fields to update
+    if (Object.keys(updates).length === 0) {
+      // If no valid updates, return the current profile
+      const { data: currentProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      return res.status(StatusCodes.OK).json(currentProfile as UserProfile);
     }
 
     const { data: updatedProfile, error } = await supabase

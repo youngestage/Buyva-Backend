@@ -3,10 +3,8 @@ export type UserRole = 'customer' | 'vendor' | 'admin';
 export interface UserProfile {
   id: string;
   email: string;
-  first_name?: string;
-  last_name?: string;
-  full_name?: string; // Add full_name to match the response in authController
-  avatar_url?: string;
+  full_name: string;  // Required field
+  avatar_url?: string | null;
   role: UserRole;
   created_at: string;
   updated_at: string;
