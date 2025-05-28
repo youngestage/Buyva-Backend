@@ -84,13 +84,22 @@ export const updateProfile = async (
       const [firstName, ...lastNames] = name.split(' ');
       updates.first_name = firstName;
       updates.last_name = lastNames.join(' ');
+      updates.full_name = name; // Keep full_name in sync
     } else {
       // Use first_name and last_name if provided
       if (first_name !== undefined) updates.first_name = first_name;
       if (last_name !== undefined) updates.last_name = last_name;
+      
+      // Update full_name if either first or last name is updated
+      if (first_name !== undefined || last_name !== undefined) {
+        updates.full_name = [
+          updates.first_name || req.user?.first_name || '',
+          updates.last_name || req.user?.last_name || ''
+        ].join(' ').trim();
+      }
     }
     
-    if (avatar_url) updates.avatar_url = avatar_url;
+    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
 
     if (Object.keys(updates).length === 0) {
       return res.status(StatusCodes.BAD_REQUEST).json({

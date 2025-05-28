@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { supabase } from '../config/supabase';
-import { AppError } from './errorHandler';
+import { supabase } from '../config/supabase.js';
+import { AppError } from './errorHandler.js';
+import { UserProfile } from '../types/user.js';
 
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: UserProfile;
     }
   }
 }
@@ -53,8 +54,8 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
 
 
     // GRANT ACCESS TO PROTECTED ROUTE
-    req.user = user;
-    res.locals.user = user;
+    req.user = user.user as UserProfile;
+    res.locals.user = user.user;
     next();
   } catch (err) {
     next(err);
@@ -88,7 +89,7 @@ export const isLoggedIn = async (req: Request, res: Response, next: NextFunction
 
 
       // THERE IS A LOGGED IN USER
-      res.locals.user = user;
+      res.locals.user = user.user;
       return next();
     } catch (err) {
       return next();
@@ -100,7 +101,7 @@ export const isLoggedIn = async (req: Request, res: Response, next: NextFunction
 export const restrictTo = (...roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     // roles is an array of allowed roles ['admin', 'lead-guide']
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return next(
         new AppError('You do not have permission to perform this action', 403)
       );
