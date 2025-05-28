@@ -2,16 +2,22 @@
   "name": "buyva-backend",
   "version": "1.0.0",
   "description": "Backend for Buyva application with Supabase",
-  "main": "server.js",
+  "type": "module",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon --experimental-modules server.js",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "eslint .",
-    "db:init": "node scripts/init-db.js"
+    "lint": "eslint . --ext .ts",
+    "db:init": "ts-node src/scripts/init-db.ts",
+    "db:reset": "ts-node src/scripts/reset-db.ts",
+    "migrate:create": "ts-node src/scripts/db-migrate.ts create",
+    "migrate:up": "ts-node src/scripts/db-migrate.ts up"
   },
   "keywords": [
     "node",
+    "typescript",
     "express",
     "supabase",
     "jwt",
@@ -21,18 +27,32 @@
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
+    "@types/jsonwebtoken": "^9.0.9",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
     "express-validator": "^7.0.1",
     "http-status-codes": "^2.3.0",
+    "jsonwebtoken": "^9.0.2",
     "path-to-regexp": "^6.2.1"
   },
   "devDependencies": {
+    "@types/commander": "^2.12.0",
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.17.51",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
+    "commander": "^14.0.0",
+    "cross-env": "^7.0.3",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
   },
   "engines": {
     "node": ">=18.0.0"

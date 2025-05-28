@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
-const { program } = require('commander');
-const dotenv = require('dotenv');
-const { createClient } = require('@supabase/supabase-js');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { Command } from 'commander';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +25,14 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   }
 });
 
+interface Migration {
+  id: number;
+  name: string;
+  applied_at: string;
+}
+
+const program = new Command();
+
 program
   .name('db-migrate')
   .description('CLI to manage database migrations')
@@ -34,7 +42,7 @@ program
 program
   .command('create <name>')
   .description('Create a new migration file')
-  .action((name) => {
+  .action((name: string) => {
     try {
       const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
       const fileName = `${timestamp}_${name.replace(/[^a-zA-Z0-9]/g, '_')}.sql`;
@@ -50,7 +58,7 @@ program
       fs.writeFileSync(filePath, template);
       
       console.log(`✅ Created migration: ${filePath}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to create migration:', error.message);
       process.exit(1);
     }
@@ -86,10 +94,14 @@ program
       await ensureMigrationsTable();
       
       // Get applied migrations
-      const { data: appliedMigrations } = await supabase
+      const { data: appliedMigrations, error: fetchError } = await supabase
         .from('_migrations')
         .select('name')
-        .order('applied_at', { ascending: true });
+        .order('applied_at', { ascending: true }) as { data: Migration[] | null; error: any };
+      
+      if (fetchError) {
+        throw new Error(`Failed to fetch migrations: ${fetchError.message}`);
+      }
       
       const appliedSet = new Set(appliedMigrations?.map(m => m.name) || []);
       
@@ -100,15 +112,23 @@ program
           
           try {
             const sql = fs.readFileSync(path.join(migrationDir, file), 'utf8');
-            await supabase.rpc('exec_sql', { sql });
+            const { error: execError } = await supabase.rpc('exec_sql', { sql });
+            
+            if (execError) {
+              throw new Error(`SQL execution failed: ${execError.message}`);
+            }
             
             // Record migration
-            await supabase
+            const { error: insertError } = await supabase
               .from('_migrations')
               .insert([{ name: file, applied_at: new Date().toISOString() }]);
               
+            if (insertError) {
+              throw new Error(`Failed to record migration: ${insertError.message}`);
+            }
+              
             console.log(`✅ Applied migration: ${file}`);
-          } catch (error) {
+          } catch (error: any) {
             console.error(`❌ Failed to apply migration ${file}:`, error.message);
             process.exit(1);
           }
@@ -116,7 +136,7 @@ program
       }
       
       console.log('✨ All migrations applied successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Migration failed:', error.message);
       process.exit(1);
     }
@@ -132,7 +152,10 @@ async function ensureMigrationsTable() {
     );
   `;
   
-  await supabase.rpc('exec_sql', { sql: createTableSQL });
+  const { error } = await supabase.rpc('exec_sql', { sql: createTableSQL });
+  if (error) {
+    throw new Error(`Failed to create migrations table: ${error.message}`);
+  }
 }
 
 // Show help if no arguments

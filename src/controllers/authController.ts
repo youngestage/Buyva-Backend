@@ -1,10 +1,19 @@
-const { StatusCodes } = require('http-status-codes');
-const supabase = require('../config/supabase');
+import { Request, Response, NextFunction } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import { supabase } from '../config/supabase.js';
+import { AuthResponse, LoginRequest, SignupRequest, UpdateProfileRequest } from '../types/auth.js';
+import { UserProfile } from '../types/user.js';
 
-// @desc    Register a new user
-// @route   POST /api/auth/signup
-// @access  Public
-const signup = async (req, res) => {
+/**
+ * @desc    Register a new user
+ * @route   POST /api/auth/signup
+ * @access  Public
+ */
+export const signup = async (
+  req: SignupRequest,
+  res: Response<AuthResponse>,
+  next: NextFunction
+): Promise<Response<AuthResponse> | void> => {
   const { email, password, first_name, last_name, role = 'customer' } = req.body;
   const full_name = `${first_name} ${last_name}`.trim();
 
@@ -12,6 +21,7 @@ const signup = async (req, res) => {
     // Validate role
     if (role && !['customer', 'vendor'].includes(role)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false,
         message: 'Invalid role. Must be either customer or vendor' 
       });
     }
@@ -25,6 +35,7 @@ const signup = async (req, res) => {
 
     if (existingUser) {
       return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false,
         message: 'User already exists' 
       });
     }
@@ -47,30 +58,39 @@ const signup = async (req, res) => {
     }
 
     // Return the user data (Supabase will send a confirmation email)
-    res.status(StatusCodes.CREATED).json({
+    const currentTime = new Date().toISOString();
+    return res.status(StatusCodes.CREATED).json({
       success: true,
       message: 'Signup successful! Please check your email to confirm your account.',
       user: {
-        id: authData.user.id,
-        email: authData.user.email,
+        id: authData.user?.id || '',
+        email: authData.user?.email || '',
         full_name,
-        role
+        role,
+        created_at: currentTime,
+        updated_at: currentTime
       }
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Signup error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       success: false,
       message: error.message || 'Error creating user',
-      error: process.env.NODE_ENV === 'development' ? error : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
-const login = async (req, res) => {
+/**
+ * @desc    Login user
+ * @route   POST /api/auth/login
+ * @access  Public
+ */
+export const login = async (
+  req: LoginRequest,
+  res: Response<AuthResponse>,
+  next: NextFunction
+): Promise<Response<AuthResponse> | void> => {
   const { email, password } = req.body;
 
   try {
@@ -82,6 +102,7 @@ const login = async (req, res) => {
 
     if (error) {
       return res.status(StatusCodes.UNAUTHORIZED).json({ 
+        success: false,
         message: 'Invalid credentials' 
       });
     }
@@ -90,35 +111,50 @@ const login = async (req, res) => {
     const { data: userProfile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', data.user.id)
+      .eq('id', data.user?.id)
       .single();
 
-    if (profileError) {
+    if (profileError || !userProfile) {
       console.error('Error fetching user profile:', profileError);
       return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+        success: false,
         message: 'Error fetching user profile' 
       });
     }
 
-    res.json({
-      user: userProfile,
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      user: userProfile as UserProfile,
       session: data.session
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+      success: false,
       message: error.message || 'Error during login'
     });
   }
 };
 
-// @desc    Get current user profile
-// @route   GET /api/auth/me
-// @access  Private
-const getProfile = async (req, res) => {
+/**
+ * @desc    Get current user profile
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+export const getProfile = async (
+  req: Request,
+  res: Response<UserProfile | { message: string }>,
+  next: NextFunction
+): Promise<Response<UserProfile | { message: string }> | void> => {
   try {
     // Get user ID from the authenticated request
-    const userId = req.user.id;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ 
+        message: 'Not authenticated' 
+      });
+    }
 
     // Get user profile
     const { data: userProfile, error: profileError } = await supabase
@@ -127,29 +163,41 @@ const getProfile = async (req, res) => {
       .eq('id', userId)
       .single();
 
-    if (profileError) {
+    if (profileError || !userProfile) {
       console.error('Error fetching user profile:', profileError);
       return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
         message: 'Error fetching user profile' 
       });
     }
 
-    res.json(userProfile);
-  } catch (error) {
+    return res.status(StatusCodes.OK).json(userProfile as UserProfile);
+  } catch (error: any) {
     console.error('Get profile error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       message: error.message || 'Error fetching profile'
     });
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/auth/me
-// @access  Private
-const updateProfile = async (req, res) => {
+/**
+ * @desc    Update user profile
+ * @route   PUT /api/auth/me
+ * @access  Private
+ */
+export const updateProfile = async (
+  req: UpdateProfileRequest,
+  res: Response<UserProfile | { message: string }>,
+  next: NextFunction
+): Promise<Response<UserProfile | { message: string }> | void> => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id;
     const updates = req.body;
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ 
+        message: 'Not authenticated' 
+      });
+    }
 
     const { data: updatedProfile, error } = await supabase
       .from('profiles')
@@ -160,21 +208,33 @@ const updateProfile = async (req, res) => {
 
     if (error) throw error;
     
-    res.json(updatedProfile);
-  } catch (error) {
+    return res.status(StatusCodes.OK).json(updatedProfile as UserProfile);
+  } catch (error: any) {
     console.error('Update profile error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       message: error.message || 'Error updating profile'
     });
   }
 };
 
-// @desc    Delete user account
-// @route   DELETE /api/auth/me
-// @access  Private
-const deleteAccount = async (req, res) => {
+/**
+ * @desc    Delete user account
+ * @route   DELETE /api/auth/me
+ * @access  Private
+ */
+export const deleteAccount = async (
+  req: Request,
+  res: Response<{ message: string }>,
+  next: NextFunction
+): Promise<Response<{ message: string }> | void> => {
   try {
-    const userId = req.user.id;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ 
+        message: 'Not authenticated' 
+      });
+    }
 
     // Delete from auth
     const { error: authError } = await supabase.auth.admin.deleteUser(userId);
@@ -188,33 +248,39 @@ const deleteAccount = async (req, res) => {
 
     if (profileError) throw profileError;
 
-    res.status(StatusCodes.NO_CONTENT).send();
-  } catch (error) {
+    return res.status(StatusCodes.NO_CONTENT).send();
+  } catch (error: any) {
     console.error('Delete account error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       message: error.message || 'Error deleting account'
     });
   }
 };
 
-// @desc    Logout user
-// @route   POST /api/auth/logout
-// @access  Private
-const logout = async (req, res) => {
+/**
+ * @desc    Logout user
+ * @route   POST /api/auth/logout
+ * @access  Private
+ */
+export const logout = async (
+  req: Request,
+  res: Response<{ message: string }>,
+  next: NextFunction
+): Promise<Response<{ message: string }> | void> => {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     
-    res.status(StatusCodes.OK).json({ message: 'Logged out successfully' });
-  } catch (error) {
+    return res.status(StatusCodes.OK).json({ message: 'Logged out successfully' });
+  } catch (error: any) {
     console.error('Logout error:', error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
       message: error.message || 'Error during logout'
     });
   }
 };
 
-module.exports = {
+export default {
   signup,
   login,
   getProfile,

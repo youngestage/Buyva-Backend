@@ -1,21 +1,23 @@
 # Buyva Backend
 
-A modern backend API for Buyva built with Node.js, Express, and Supabase.
+A modern backend API for Buyva built with Node.js, TypeScript, Express, and Supabase.
 
 ## Features
 
 - 🔐 Authentication (Signup, Login, Logout)
 - 👤 User Profile Management
 - 🔒 Row Level Security (RLS) for data protection
-- 🚀 Fast and scalable architecture
+- 🚀 Fast and scalable architecture with TypeScript
 - 📝 Comprehensive API documentation
+- 🛠 Type-safe code with TypeScript
+- 🔍 ESLint and Prettier for code quality
 
 ## Prerequisites
 
 - Node.js 18+ (LTS recommended)
 - npm or yarn
 - Supabase account
-- PostgreSQL (for local development, optional)
+- TypeScript 5.0+
 
 ## Getting Started
 
@@ -42,12 +44,49 @@ A modern backend API for Buyva built with Node.js, Express, and Supabase.
    cp .env.example .env
    ```
 
-   Update the `.env` file with your Supabase credentials:
+   Update the `.env` file with your Supabase credentials and other required environment variables.
 
-   ```env
-   # Server Configuration
-   PORT=5000
-   NODE_ENV=development
+4. **Build the project**
+
+   ```bash
+   npm run build
+   ```
+
+5. **Run the application**
+
+   For development with auto-reload:
+   ```bash
+   npm run dev
+   ```
+
+   For production:
+   ```bash
+   npm start
+   ```
+
+## Project Structure
+
+```
+src/
+├── config/           # Configuration files
+├── controllers/      # Route controllers
+├── middlewares/      # Express middlewares
+├── routes/           # API routes
+├── services/         # Business logic
+├── types/            # TypeScript type definitions
+├── utils/            # Utility functions
+└── server.ts         # Application entry point
+```
+
+## Development
+
+- **Linting**: `npm run lint`
+- **Building**: `npm run build`
+- **Testing**: `npm test` (when tests are added)
+
+## Environment Variables
+
+Required environment variables are defined in `.env.example`. Copy this file to `.env` and update the values as needed.
 
    # Supabase Configuration
    SUPABASE_URL=your_supabase_project_url

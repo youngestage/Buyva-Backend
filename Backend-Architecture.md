@@ -9,11 +9,11 @@ This document outlines the backend architecture, technologies, folder structure,
 
 | Component         | Technology                     |
 |------------------|---------------------------------|
-| Language          | JavaScript / TypeScript        |
+| Language          |  TypeScript        |
 | Runtime           | Node.js                        |
 | Framework         | Express.js or NestJS           |
-| Database          | MongoDB (Mongoose ODM)         |
-| Authentication    | Firebase Auth / JWT            |
+| Database          | Supabase        |
+| Authentication    | JWT            |
 | Image Hosting     | Cloudinary                     |
 | Payment Gateway   | Paystack / Flutterwave         |
 | Hosting           | Railway / Render / VPS         |
@@ -27,7 +27,7 @@ This document outlines the backend architecture, technologies, folder structure,
 │
 ├── /controllers # Handles route logic
 ├── /routes # Defines REST API endpoints
-├── /models # Mongoose models
+├── /models # Supabase models
 ├── /middlewares # Auth, error handlers, etc.
 ├── /utils # Helper functions
 ├── /config # DB & env setup
@@ -78,4 +78,7 @@ This document outlines the backend architecture, technologies, folder structure,
 ```bash
 mkdir buyva-backend && cd buyva-backend
 npm init -y
-npm install express mongoose dotenv cors cloudinary jsonwebtoken bcryptjs nodemailer
+npm install express @supabase/supabase-js dotenv cors cloudinary jsonwebtoken bcryptjs nodemailer
+npm install --save-dev typescript @types/node @types/express @types/jwt @types/cloudinary @types/nodemailer
+npm install -D ts-node-dev
+```

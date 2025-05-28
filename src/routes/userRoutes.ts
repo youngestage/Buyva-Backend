@@ -1,6 +1,6 @@
-const { Router } = require('express');
-const { protect, authorize } = require('../middlewares/authMiddleware');
-const {
+import { Router } from 'express';
+import { protect, authorize } from '../middlewares/authMiddleware.js';
+import {
   getCurrentUser,
   updateProfile,
   deleteAccount,
@@ -8,7 +8,7 @@ const {
   getUser,
   updateRole,
   deleteUser
-} = require('../controllers/userController');
+} from '../controllers/userController.js';
 
 const router = Router();
 
@@ -34,4 +34,4 @@ router.route('/:id')
 router.route('/:id/role')
   .patch(updateRole);
 
-module.exports = router;
+export default router;
